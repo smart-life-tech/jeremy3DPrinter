@@ -59,7 +59,7 @@
 #include <FastPID.h>
 #include <EEPROM.h>
 #include <U8g2lib.h>
-#include <Encoder.h>
+#include "ESP32Encoder.h" // Use our custom ESP32 encoder implementation
 
 #define HEATER1_PIN 12
 #define HEATER2_PIN 13
@@ -81,7 +81,7 @@
 TCA9548A tca;
 Adafruit_Si7021 sensor = Adafruit_Si7021();
 U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, OLED_RESET);
-Encoder encoder(ENCODER_CLK, ENCODER_DT);
+ESP32Encoder encoder(ENCODER_CLK, ENCODER_DT);
 
 long lastEncoderPos = 0;
 bool encoderButtonPressed = false;
@@ -130,7 +130,15 @@ unsigned long lastScreenSwitch = 0;
 bool inIdleMode = false;
 bool buzzerLocked = false;
 
-// Placeholder functions for screen routing
+// Forward declarations for functions
+void displayMainMenu();
+void displaySettingsMenu();
+void displayZone(const Zone &z);
+void displayFilament();
+void displayAllTemps();
+void displayTimerDuration(const Zone &z);
+void displayCountdown(const Zone &z);
+void updateScreen();
 
 void displayMainMenu()
 {
@@ -239,8 +247,6 @@ void displayFilament()
   u8g2.sendBuffer();
 }
 
-void updateScreen();
-
 void displayAllTemps()
 {
   u8g2.clearBuffer();
@@ -265,11 +271,46 @@ void displayAllTemps()
   u8g2.print(" F");
   u8g2.sendBuffer();
 }
-void displayMainMenu();
-void displaySettingsMenu();
-void displayZone(const Zone &z);
-void displayFilament();
-void displayAllTemps();
+
+void displayTimerDuration(const Zone &z)
+{
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setCursor(0, 12);
+  u8g2.print("Set Timer:");
+  u8g2.setCursor(0, 28);
+  unsigned long sec = z.timerSeconds;
+  u8g2.print(sec / 3600);
+  u8g2.print("h ");
+  u8g2.print((sec % 3600) / 60);
+  u8g2.print("m");
+  u8g2.sendBuffer();
+}
+
+void displayCountdown(const Zone &z)
+{
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+  u8g2.setCursor(0, 12);
+  u8g2.print(z.name);
+  u8g2.setCursor(0, 28);
+  u8g2.print("RUNNING (Timer):");
+  unsigned long elapsed = (millis() - z.timerStart) / 1000UL;
+  unsigned long remaining = (z.timerSeconds > elapsed) ? (z.timerSeconds - elapsed) : 0;
+  u8g2.setCursor(0, 44);
+  u8g2.print("Time Left: ");
+  u8g2.print(remaining / 3600);
+  u8g2.print("h ");
+  u8g2.print((remaining % 3600) / 60);
+  u8g2.print("m");
+  u8g2.sendBuffer();
+}
+
+void updateScreen()
+{
+  // This is a placeholder for any screen update logic
+  // You can implement this based on your needs
+}
 
 void setup()
 {
@@ -542,7 +583,6 @@ void loop()
     backButtonPressed = false;
 
   // Update screen
-
   switch (screenIndex)
   {
   case 100:
@@ -724,8 +764,8 @@ void loop()
   }
   case 21:
   {
-    enclosure1.timerSeconds = (max((abs(lastEncoderPos) % 289), 2)) * 600;
-  //  displayTimerDuration(enclosure1);
+    enclosure1.timerSeconds = (abs(lastEncoderPos) % 289 + 2) * 600; // Fixed max() issue
+    displayTimerDuration(enclosure1);
     break;
   }
   case 22:
@@ -743,8 +783,8 @@ void loop()
   }
   case 31:
   {
-    enclosure2.timerSeconds = (max((abs(lastEncoderPos) % 289), 2)) * 600;
-    //displayTimerDuration(enclosure2);
+    enclosure2.timerSeconds = (abs(lastEncoderPos) % 289 + 2) * 600; // Fixed max() issue
+    displayTimerDuration(enclosure2);
     break;
   }
   case 32:
@@ -825,38 +865,4 @@ void loop()
 
   updateScreen();
   delay(500);
-}
-
-void displayTimerDuration(const Zone &z)
-{
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.setCursor(0, 12);
-  u8g2.print("Set Timer:");
-  u8g2.setCursor(0, 28);
-  unsigned long sec = z.timerSeconds;
-  u8g2.print(sec / 3600);
-  u8g2.print("h ");
-  u8g2.print((sec % 3600) / 60);
-  u8g2.print("m");
-  u8g2.sendBuffer();
-}
-
-void displayCountdown(const Zone &z)
-{
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.setCursor(0, 12);
-  u8g2.print(z.name);
-  u8g2.setCursor(0, 28);
-  u8g2.print("RUNNING (Timer):");
-  unsigned long elapsed = (millis() - z.timerStart) / 1000UL;
-  unsigned long remaining = (z.timerSeconds > elapsed) ? (z.timerSeconds - elapsed) : 0;
-  u8g2.setCursor(0, 44);
-  u8g2.print("Time Left: ");
-  u8g2.print(remaining / 3600);
-  u8g2.print("h ");
-  u8g2.print((remaining % 3600) / 60);
-  u8g2.print("m");
-  u8g2.sendBuffer();
 }
